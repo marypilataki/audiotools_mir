@@ -13,6 +13,8 @@ from torch.utils.data import SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
 
 import tensorflow as tf
+import sys
+sys.path.append('/homes/mpm30/Dev/dac_for_mir/dac-for-mir/audiotools-mir/audiotools/basic-pitch')
 from basic_pitch.inference import predict
 
 from ..core import AudioSignal
@@ -200,6 +202,7 @@ def get_noisy_label(item):
                 if note_start == note_end:
                     note_end = note_end + 1
                 label[note_start:note_end, pitch_index] = 1
+                
     return label
 
 def default_matcher(x, y):
