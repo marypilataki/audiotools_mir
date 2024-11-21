@@ -8,3 +8,6 @@ from . import data
 from . import ml
 from .data import datasets
 from .data import transforms
+
+import sys
+sys.path.append('basic-pitch')
