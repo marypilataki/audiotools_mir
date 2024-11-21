@@ -11,6 +11,7 @@ import librosa
 import torch
 from torch.utils.data import SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
+
 from basic_pitch.inference import predict
 
 from ..core import AudioSignal
@@ -181,26 +182,22 @@ def get_midi_label(item):
 def get_noisy_label(item):
 
     dac_rate = 87
-    start_time = item["offset"]
-    end_time = start_time + item["signal"].duration
-
     num_samples, num_notes = int(item["signal"].duration * dac_rate), 128
-    label = torch.zeros(num_samples, num_notes)
+    label = torch.zeros(num_samples, num_notes, dtype=torch.uint8)
 
     _, midi_data, _ = predict(item["signal"].audio_data.squeeze().squeeze().detach().cpu().numpy(), sample_rate=item["signal"].sample_rate)
     for instrument in midi_data.instruments:
         if not instrument.is_drum:
             for note in instrument.notes:
-                if note.start >= start_time:
-                    note_start = librosa.time_to_samples(note.start - start_time, sr=dac_rate)
-                    pitch_index = note.pitch # 0-127
-                    assert pitch_index >= 0, f'Pitch index is negative: {note.pitch}'
+                note_start = librosa.time_to_samples(note.start, sr=dac_rate)
+                note_end = librosa.time_to_samples(note.end, sr=dac_rate)
+                pitch_index = note.pitch # 0-127
+                assert pitch_index >= 0, f'Pitch index is negative: {note.pitch}'
 
-                    if note.end <= end_time:
-                        note_end = librosa.time_to_samples(note.end - start_time, sr=dac_rate)
-                        label[note_start:note_end, pitch_index] = 1
-                    else:
-                        label[note_start:, pitch_index] = 1
+                assert note_end >= note_start, "End sample must be later than start sample!"
+                if note_start == note_end:
+                    note_end = note_end + 1
+                label[note_start:note_end, pitch_index] = 1
     return label
 
 def default_matcher(x, y):
