@@ -11,11 +11,8 @@ import librosa
 import torch
 from torch.utils.data import SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
-<<<<<<< HEAD
 
-=======
 import tensorflow as tf
->>>>>>> 9842e8ef40de572a0273eb3c37b849428bc3465d
 from basic_pitch.inference import predict
 
 from ..core import AudioSignal
