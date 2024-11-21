@@ -1,0 +1,3 @@
+[submodule "audiotools/basic-pitch"]
+	path = audiotools/basic-pitch
+	url = git@github.com:marypilataki/basic-pitch.git

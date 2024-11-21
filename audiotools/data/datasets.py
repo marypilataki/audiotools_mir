@@ -13,7 +13,7 @@ from torch.utils.data import SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
 
 import tensorflow as tf
-from basic_pitch.inference import predict
+from ..basic_pitch import predict
 
 from ..core import AudioSignal
 from ..core import util
