@@ -13,7 +13,7 @@ from torch.utils.data import SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
 
 import tensorflow as tf
-from ..basic_pitch import predict
+from basic_pitch.inference import predict
 
 from ..core import AudioSignal
 from ..core import util
@@ -162,7 +162,7 @@ def get_midi_label(item):
     assert label_path.exists(), f'Label path {label_path} does not exist!'
 
     num_samples, num_notes = int(item["signal"].duration * dac_rate), 128
-    label = torch.zeros(num_samples, num_notes)
+    label = torch.zeros(num_samples, num_notes, dtype=torch.float32)
 
     midi_data = PrettyMIDI(str(label_path))
     for instrument in midi_data.instruments:
@@ -184,7 +184,7 @@ def get_noisy_label(item):
 
     dac_rate = 87
     num_samples, num_notes = int(item["signal"].duration * dac_rate), 128
-    label = torch.zeros(num_samples, num_notes, dtype=torch.uint8)
+    label = torch.zeros(num_samples, num_notes, dtype=torch.float32)
     with tf.device('/cpu:0'):
         _, midi_data, _ = predict(item["signal"].audio_data.squeeze().squeeze().detach().cpu().numpy(), sample_rate=item["signal"].sample_rate)
 
