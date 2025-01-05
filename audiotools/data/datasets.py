@@ -4,7 +4,6 @@ from typing import Dict
 from typing import List
 from typing import Union
 
-
 import numpy as np
 from pretty_midi import PrettyMIDI
 import librosa
@@ -13,8 +12,6 @@ from torch.utils.data import SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
 
 import tensorflow as tf
-import sys
-sys.path.append('/homes/mpm30/Dev/dac_for_mir/dac-for-mir/audiotools-mir/audiotools/basic-pitch')
 from basic_pitch.inference import predict
 
 from ..core import AudioSignal
@@ -59,7 +56,10 @@ class AudioLoader:
             shuffle: bool = True,
             shuffle_state: int = 0,
             instrument_labels: bool = True,
-            noisy_labels: bool = False
+            noisy_labels: bool = False,
+            n_notes: int = 88,
+            n_frames: int = None,
+            dt: float = None
     ):
         self.audio_lists = util.read_sources(
             sources, relative_path=relative_path, ext=ext
@@ -79,6 +79,10 @@ class AudioLoader:
         self.transform = transform
         self.instrument_labels = instrument_labels
         self.noisy_labels = noisy_labels
+        #self.n_frames = 128
+        #self.dt = 10*0.001
+        self.n_frames = n_frames
+        self.dt = dt
 
     def __call__(
             self,
@@ -159,6 +163,8 @@ def get_midi_label(item):
         label_path = Path(item["path"]).parent / 'all_src.mid'
     elif 'maestro' in item['path'].lower():
         label_path = Path(item["path"]).parent / f'{Path(item["path"]).stem}.midi'
+    elif 'musicnet' in item['path'].lower():
+        label_path = Path(item["path"]).parents[1] / f"{(Path(item['path']).parents[0].name).split('_')[0]}_labels" / f"{Path(item['path']).stem}.mid"
     else:
         raise ValueError('Dataset not supported')
     assert label_path.exists(), f'Label path {label_path} does not exist!'
@@ -182,6 +188,7 @@ def get_midi_label(item):
                         label[note_start:, pitch_index] = 1
     return label
 
+"""
 def get_noisy_label(item):
 
     dac_rate = 87
@@ -203,6 +210,36 @@ def get_noisy_label(item):
                     note_end = note_end + 1
                 label[note_start:note_end, pitch_index] = 1
                 
+    return label
+"""
+
+def get_noisy_label(item):
+    "Function to return a noisy label for spectrogram"
+    # todo: add option to generate label for audio codec
+    # dt = frame shift in seconds
+    MIDI_OFFSET = 21
+    MAX_FREQ_IDX = 87
+
+    with tf.device('/cpu:0'):
+        _, midi_data, _ = predict(item["signal"].audio_data.squeeze().squeeze().detach().cpu().numpy(), sample_rate=item["signal"].sample_rate)
+    label = torch.zeros(self.n_frames, self.n_notes, dtype=torch.int32)
+
+    for instrument in midi_data.instruments:
+        # only consider non-percussive instruments
+        if not instrument.is_drum:
+            for note in instrument.notes:
+                frame_start = int(np.round(note.start / dt))
+                frame_end = int(np.round(note.end / dt))
+                pitch_index = note.pitch - MIDI_OFFSET
+
+                # even if the event was too short, always produce a label!
+                if frame_start == frame_end:
+                    frame_end += 1
+
+                if pitch_index <= MAX_FREQ_IDX:
+                    label[frame_start:frame_end, pitch_index] = 1
+                else:
+                    print(f'Warning: Pitch index {pitch_index} out of range, {item["path"]}')
     return label
 
 def default_matcher(x, y):
