@@ -83,6 +83,10 @@ class AudioLoader:
         #self.dt = 10*0.001
         self.n_frames = n_frames
         self.dt = dt
+        if self.n_frames is not None:
+            assert self.dt is not None, "Frame shift must be specified when n_frames is specified."
+        if self.dt is not None:
+            assert self.n_frames is not None, "Number of frames must be specified when frame shift is specified."
 
     def __call__(
             self,
@@ -139,6 +143,8 @@ class AudioLoader:
         for k, v in audio_info.items():
             signal.metadata[k] = v
 
+        if self.n_frames is not None:
+            signal = signal.to_spectrogram(n_fft=2048, hop_length=512)
         item = {
             "signal": signal,
             "source_idx": source_idx,

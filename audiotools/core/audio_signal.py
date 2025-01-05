@@ -11,6 +11,7 @@ from pathlib import Path
 
 import julius
 import numpy as np
+import torchaudio
 import soundfile
 import torch
 
@@ -711,6 +712,20 @@ class AudioSignal(
             AudioSignal with mean of channels.
         """
         self.audio_data = self.audio_data.mean(1, keepdim=True)
+        return self
+
+    def to_mel_fbank(self):
+        self.to_mono()
+        audio_data = self.audio_data
+        audio_data = audio_data.squeeze(0)
+        assert len(audio_data.shape)==2 # [n_channels, n_samples]
+        audio_data = audio_data - audio_data.mean()
+
+        # hardcoded hyperparams
+        # returns mel filterbank [n_frames, n_mel_bins]
+        self.audio_data = torchaudio.compliance.kaldi.fbank(audio_data, htk_compat=True, sample_frequency=self.sample_rate, use_energy=False,
+                                                  window_type='hanning', num_mel_bins=128, dither=0.0,
+                                                  frame_shift=10, frame_length=25).unsqueeze(0)
         return self
 
     def resample(self, sample_rate: int):
