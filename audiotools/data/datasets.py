@@ -12,6 +12,8 @@ from torch.utils.data import SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
 
 import tensorflow as tf
+import sys
+sys.path.append('./audiotools_mir/audiotools/basic-pitch')
 from basic_pitch.inference import predict
 
 from ..core import AudioSignal
