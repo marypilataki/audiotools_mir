@@ -1002,6 +1002,29 @@ class VolumeNorm(BaseTransform):
     def _transform(self, signal, db):
         return signal.normalize(db)
 
+class MelFilterBank(BaseTransform):
+    """Computes mel filterbank of audio signal.
+    """
+
+    def __init__(
+        self,
+        name: str = None,
+        prob: float = 1.0,
+        num_mel_bins: tuple = ("const", 128),
+        frame_shift: tuple = ("const", 10.0),
+        frame_length: tuple = ("const", 25.0)
+    ):
+        super().__init__(name=name, prob=prob)
+        self.num_mel_bins = num_mel_bins
+        self.frame_shift = frame_shift
+        self.frame_length = frame_length
+
+    def _instantiate(self, state: RandomState):
+        return {"num_mel_bins": util.sample_from_dist(self.num_mel_bins, state), "frame_shift": util.sample_from_dist(self.frame_shift, state), "frame_length": util.sample_from_dist(self.frame_length, state)}
+
+    def _transform(self, signal, num_mel_bins, frame_shift, frame_length):
+        return signal.to_mel_fbank(num_mel_bins=num_mel_bins, frame_shift=frame_shift, frame_length=frame_length)
+
 
 class GlobalVolumeNorm(BaseTransform):
     """Similar to :py:func:`audiotools.data.transforms.VolumeNorm`, this

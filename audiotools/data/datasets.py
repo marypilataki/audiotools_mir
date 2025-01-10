@@ -156,8 +156,6 @@ class AudioLoader:
             "offset": signal.metadata["offset"]
         }
         item["pitch_labels"] = self.get_noisy_label(item) if self.noisy_labels else self.get_midi_label(item)
-        #if self.n_frames is not None:
-        #    item["signal"] = signal.to_mel_fbank(dataset_mean=dataset_mean, dataset_std=dataset_std)
         if self.transform is not None:
             item["transform_args"] = self.transform.instantiate(state, signal=signal)
         return item
