@@ -714,7 +714,7 @@ class AudioSignal(
         self.audio_data = self.audio_data.mean(1, keepdim=True)
         return self
 
-    def to_mel_fbank(self, num_mel_bins, frame_shift, frame_length):
+    def mel_filterbank(self, num_mel_bins, frame_shift, frame_length):
         mel = []
         if self.audio_data.ndim == 2: # C, N
             pass
@@ -723,13 +723,12 @@ class AudioSignal(
                 samples = b - b.mean()
                 mel.append(torchaudio.compliance.kaldi.fbank(samples, htk_compat=True, sample_frequency=self.sample_rate,
                                                   use_energy=False,
-                                                  window_type='hanning', num_mel_bins=num_mel_bins[i], dither=0.0,
-                                                  frame_shift=frame_shift[i], frame_length=frame_length[i]).unsqueeze(0)) # add batch dimension
+                                                  window_type='hanning', num_mel_bins=num_mel_bins, dither=0.0,
+                                                  frame_shift=frame_shift, frame_length=frame_length).unsqueeze(0)) # add batch dimension
 
 
         # returns mel filterbank [n_frames, n_mel_bins]
-        self.mel_data = torch.cat(mel, dim=0)
-        return self
+        return torch.cat(mel, dim=0)
 
     def resample(self, sample_rate: int):
         """Resamples the audio, using sinc interpolation. This works on both
