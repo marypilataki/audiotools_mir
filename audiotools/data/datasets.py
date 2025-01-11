@@ -57,11 +57,11 @@ class AudioLoader:
             ext: List[str] = util.AUDIO_EXTENSIONS,
             shuffle: bool = True,
             shuffle_state: int = 0,
+            normalise_audio: bool = False,
             instrument_labels: bool = True,
             noisy_labels: bool = False,
             n_notes: int = 88,
-            n_frames: int = None,
-            dt: float = None
+            mel_params: dict = None,
     ):
         sources = [sources] if isinstance(sources, str) else sources
         self.audio_lists = util.read_sources(
@@ -80,17 +80,11 @@ class AudioLoader:
         self.sources = sources
         self.weights = weights
         self.transform = transform
+        self.normalise_audio = normalise_audio
         self.instrument_labels = instrument_labels
         self.noisy_labels = noisy_labels
         self.n_notes = n_notes
-        #self.n_frames = 128
-        #self.dt = (10*10e-3*44100)/44100 # hop size in samples / sample rate
-        self.n_frames = n_frames
-        self.dt = dt # hop size / sample rate = 414/44100 = 0.0094
-        if self.n_frames is not None:
-            assert self.dt is not None, "Frame shift must be specified when n_frames is specified."
-        if self.dt is not None:
-            assert self.n_frames is not None, "Number of frames must be specified when frame shift is specified."
+        self.mel_params = mel_params
 
     def __call__(
             self,
@@ -144,18 +138,29 @@ class AudioLoader:
         if signal.duration < duration:
             signal = signal.zero_pad_to(int(duration * sample_rate))
 
+        if self.normalise_audio:
+            signal.normalize(-24) # normalise to -24 dB
+            signal.ensure_max_of_audio(1.0) # make sure there is no clipping
         for k, v in audio_info.items():
             signal.metadata[k] = v
 
-        item = {
-            "signal": signal,
-            "source_idx": source_idx,
-            "item_idx": item_idx,
-            "source": str(self.sources[source_idx]),
-            "path": str(path),
-            "offset": signal.metadata["offset"]
-        }
-        item["pitch_labels"] = self.get_noisy_label(item) if self.noisy_labels else self.get_midi_label(item)
+        # calculate mel filterbank
+        if self.mel_params:
+            mel = signal.mel_filterbank(**self.mel_params)
+            n_frames = mel.shape[1] # 1, 128, 128 -> C, N_FRAMES, BINS
+            hop_size_samples = int(self.mel_params['frame_shift'] * 10**-3 * signal.sample_rate)
+            dt = hop_size_samples / signal.sample_rate
+            item = {"mel": mel, "path": path}
+        else:
+            item = {
+                "signal": signal,
+                "source_idx": source_idx,
+                "item_idx": item_idx,
+                "source": str(self.sources[source_idx]),
+                "path": str(path),
+                "offset": signal.metadata["offset"]
+            }
+        item["label"] = self.get_noisy_label(signal, n_frames=n_frames, dt=dt) if self.noisy_labels else self.get_midi_label(item)
         if self.transform is not None:
             item["transform_args"] = self.transform.instantiate(state, signal=signal)
         return item
@@ -196,7 +201,7 @@ class AudioLoader:
                             label[note_start:, pitch_index] = 1
         return label
 
-    def get_noisy_label(self, item):
+    def get_noisy_label(self, signal, n_frames, dt):
         "Function to return a noisy label for spectrogram"
         # todo: add option to generate label for audio codec
         # todo: check dt value
@@ -205,15 +210,15 @@ class AudioLoader:
         MAX_FREQ_IDX = 87
 
         with tf.device('/cpu:0'):
-            _, midi_data, _ = predict(item["signal"].audio_data.squeeze().squeeze().detach().cpu().numpy(), sample_rate=item["signal"].sample_rate)
-        label = torch.zeros(self.n_frames, self.n_notes, dtype=torch.int32)
+            _, midi_data, _ = predict(signal.audio_data.squeeze().squeeze().detach().cpu().numpy(), sample_rate=signal.sample_rate)
+        label = torch.zeros(n_frames, self.n_notes, dtype=torch.int32)
 
         for instrument in midi_data.instruments:
             # only consider non-percussive instruments
             if not instrument.is_drum:
                 for note in instrument.notes:
-                    frame_start = int(np.round(note.start / self.dt))
-                    frame_end = int(np.round(note.end / self.dt))
+                    frame_start = int(np.round(note.start / dt))
+                    frame_end = int(np.round(note.end / dt))
                     pitch_index = note.pitch - MIDI_OFFSET
 
                     # even if the event was too short, always produce a label!
