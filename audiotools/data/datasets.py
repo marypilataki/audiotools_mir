@@ -160,7 +160,7 @@ class AudioLoader:
                 "path": str(path),
                 "offset": signal.metadata["offset"]
             }
-        item["label"] = self.get_noisy_label(signal, n_frames=n_frames, dt=dt) if self.noisy_labels else self.get_midi_label(item)
+        item["label"] =self.get_noisy_label(signal, n_frames=n_frames, dt=dt).to(torch.bfloat16) if self.noisy_labels else self.get_midi_label(item).to(torch.bfloat16)
         if self.transform is not None:
             item["transform_args"] = self.transform.instantiate(state, signal=signal)
         return item
