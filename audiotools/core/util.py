@@ -50,7 +50,7 @@ def info(audio_path: str):
     if isinstance(info, tuple):  # pragma: no cover
         signal_info = info[0]
         info = Info(sample_rate=signal_info.rate, num_frames=signal_info.length)
-    elif isinstance(info, torchaudio.backend.common.AudioMetaData):
+    elif isinstance(info, torchaudio.backend.common.AudioMetaData): # change to torchaudio.AudioMetaData
         info = Info(sample_rate=info.sample_rate, num_frames=info.num_frames)
     else:
         assert isinstance(info, Info)
