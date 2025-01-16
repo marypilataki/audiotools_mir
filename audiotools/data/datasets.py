@@ -191,9 +191,8 @@ class AudioLoader:
 
 
     def get_midi_label_for_codec(self, sample_rate, offset, duration, path, codec_rate):
-        #
-        # TODO: modify for multi-instrument roll support
-        #
+        "Function to return ground truth label for codec."
+        # todo: add support for multi-instrument roll
         num_samples = duration * codec_rate
         start_time = offset
         end_time = start_time + duration
@@ -210,12 +209,12 @@ class AudioLoader:
             if not instrument.is_drum:
                 for note in instrument.notes:
                     if note.start >= start_time:
-                        note_start = librosa.time_to_samples(note.start - start_time, sr=dac_rate)
-                        pitch_index = note.pitch # 0-(self.n_notes-1)
+                        note_start = librosa.time_to_samples(note.start - start_time, sr=codec_rate)
+                        pitch_index = note.pitch - self.midi_offset
                         assert pitch_index >= 0, f'Pitch index is negative: {pitch_index}'
 
                         if note.end <= end_time:
-                            note_end = librosa.time_to_samples(note.end - start_time, sr=dac_rate)
+                            note_end = librosa.time_to_samples(note.end - start_time, sr=codec_rate)
                             label[note_start:note_end, pitch_index] = 1
                         else:
                             label[note_start:, pitch_index] = 1
