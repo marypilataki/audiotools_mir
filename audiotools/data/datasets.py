@@ -62,6 +62,7 @@ class AudioLoader:
             noisy_labels: bool = False,
             n_notes: int = 88,
             mel_params: dict = None,
+            codec_rate: int = None,
     ):
         sources = [sources] if isinstance(sources, str) else sources
         self.audio_lists = util.read_sources(
@@ -85,6 +86,9 @@ class AudioLoader:
         self.noisy_labels = noisy_labels
         self.n_notes = n_notes
         self.mel_params = mel_params
+        self.codec_rate = codec_rate
+        self.midi_offset = 21 if self.n_notes == 88 else 0
+        self.max_freq_idx = 87 if self.n_notes == 88 else 127
 
     def __call__(
             self,
@@ -146,11 +150,15 @@ class AudioLoader:
 
         # calculate mel filterbank
         if self.mel_params:
+            assert self.codec_rate == None, "Please choose either a mel filterbank or a codec to generate labels for."
             mel = signal.mel_filterbank(**self.mel_params)
             n_frames = mel.shape[1] # 1, 128, 128 -> C, N_FRAMES, BINS
             hop_size_samples = int(self.mel_params['frame_shift'] * 10**-3 * signal.sample_rate)
             dt = hop_size_samples / signal.sample_rate
             item = {"mel": mel, "path": path}
+            item["label"] = self.get_noisy_label(n_frames=n_frames, dt=dt).to(
+                torch.float32) if self.noisy_labels else self.get_midi_label(n_frames=n_frames, dt=dt,
+                                                                             path=item["path"]).to(torch.float32)
         else:
             item = {
                 "signal": signal,
@@ -160,46 +168,13 @@ class AudioLoader:
                 "path": str(path),
                 "offset": signal.metadata["offset"]
             }
-        item["label"] =self.get_noisy_label(signal, n_frames=n_frames, dt=dt).to(torch.float32) if self.noisy_labels else self.get_midi_label(signal, n_frames=n_frames, dt=dt, path=item["path"]).to(torch.float32)
+            item["label"] = self.get_noisy_label_for_codec(signal.audio_data, sample_rate=signal.sample_rate, duration=signal.duration, codec_rate=self.codec_rate).to(
+                torch.float32) if self.noisy_labels else self.get_midi_label_for_codec(sample_rate=signal.sample_rate, offset=item['offset'], duration=signal.duration, path=item["path"], codec_rate=self.codec_rate).to(torch.float32)
+
         if self.transform is not None:
             item["transform_args"] = self.transform.instantiate(state, signal=signal)
         return item
 
-
-    # def get_midi_label(self, item):
-    #
-    #     dac_rate = 87
-    #     start_time = item["offset"]
-    #     end_time = start_time + item["signal"].duration
-    #     # define label path based on the dataset
-    #     if 'slakh' in item['path'].lower():
-    #         label_path = Path(item["path"]).parent / 'all_src.mid'
-    #     elif 'maestro' in item['path'].lower():
-    #         label_path = Path(item["path"]).parent / f'{Path(item["path"]).stem}.midi'
-    #     elif 'musicnet' in item['path'].lower():
-    #         label_path = Path(item["path"]).parents[1] / f"{(Path(item['path']).parents[0].name).split('_')[0]}_labels" / f"{Path(item['path']).stem}.mid"
-    #     else:
-    #         raise ValueError('Dataset not supported')
-    #     assert label_path.exists(), f'Label path {label_path} does not exist!'
-    #
-    #     num_samples, num_notes = int(item["signal"].duration * dac_rate), self.n_notes
-    #     label = torch.zeros(num_samples, num_notes, dtype=torch.float32)
-    #
-    #     midi_data = PrettyMIDI(str(label_path))
-    #     for instrument in midi_data.instruments:
-    #         if not instrument.is_drum:
-    #             for note in instrument.notes:
-    #                 if note.start >= start_time:
-    #                     note_start = librosa.time_to_samples(note.start - start_time, sr=dac_rate)
-    #                     pitch_index = note.pitch # 0-(self.n_notes-1)
-    #                     assert pitch_index >= 0, f'Pitch index is negative: {pitch_index}'
-    #
-    #                     if note.end <= end_time:
-    #                         note_end = librosa.time_to_samples(note.end - start_time, sr=dac_rate)
-    #                         label[note_start:note_end, pitch_index] = 1
-    #                     else:
-    #                         label[note_start:, pitch_index] = 1
-    #     return label
 
     def get_midi_path(self, path):
         """Function to infer MIDI path corresponding to an audio file based on dataset."""
@@ -214,12 +189,42 @@ class AudioLoader:
         assert label_path.exists(), f'Label path {label_path} does not exist!'
         return label_path
 
-    def get_midi_label(self, signal, n_frames, dt, path):
+
+    def get_midi_label_for_codec(self, sample_rate, offset, duration, path, codec_rate):
+        #
+        # TODO: modify for multi-instrument roll support
+        #
+        num_samples = duration * codec_rate
+        start_time = offset
+        end_time = start_time + duration
+        if self.n_instruments > 1:
+            from ..data.vocabulary import program_to_index, program_to_name
+            label = torch.zeros(num_samples, self.n_notes, self.n_instruments, dtype=torch.int32)
+        else:
+            label = torch.zeros(num_samples, self.n_notes, dtype=torch.int32)
+
+        label_path = self.get_midi_path(path)
+        midi_data = PrettyMIDI(str(label_path))
+
+        for instrument in midi_data.instruments:
+            if not instrument.is_drum:
+                for note in instrument.notes:
+                    if note.start >= start_time:
+                        note_start = librosa.time_to_samples(note.start - start_time, sr=dac_rate)
+                        pitch_index = note.pitch # 0-(self.n_notes-1)
+                        assert pitch_index >= 0, f'Pitch index is negative: {pitch_index}'
+
+                        if note.end <= end_time:
+                            note_end = librosa.time_to_samples(note.end - start_time, sr=dac_rate)
+                            label[note_start:note_end, pitch_index] = 1
+                        else:
+                            label[note_start:, pitch_index] = 1
+        return label
+
+
+    def get_midi_label(self, n_frames, dt, path):
         "Function to return ground truth label for spectrogram"
-        # todo: add option to generate label for audio codec
         # dt = frame shift in seconds
-        MIDI_OFFSET = 21
-        MAX_FREQ_IDX = 87
 
         if self.n_instruments > 1:
             from ..data.vocabulary import program_to_index, program_to_name
@@ -236,13 +241,13 @@ class AudioLoader:
                 for note in instrument.notes:
                     frame_start = int(np.round(note.start / dt))
                     frame_end = int(np.round(note.end / dt))
-                    pitch_index = note.pitch - MIDI_OFFSET
+                    pitch_index = note.pitch - self.midi_offset
 
                     # even if the event was too short, always produce a label!
                     if frame_start == frame_end:
                         frame_end += 1
 
-                    if pitch_index <= MAX_FREQ_IDX:
+                    if pitch_index <= self.max_freq_idx:
                         if self.n_instruments > 1:
                             try:
                                 label[frame_start:frame_end, pitch_index, program_to_index[instrument.program]] = 1
@@ -256,12 +261,11 @@ class AudioLoader:
                         #print(f'Warning: Pitch index {pitch_index} out of range, {path}')
         return label
 
-    def get_noisy_label(self, signal, n_frames, dt):
+
+    def get_noisy_label(self, n_frames, dt):
         "Function to return a noisy label for spectrogram"
         # todo: add option to generate label for audio codec
         # dt = frame shift in seconds
-        MIDI_OFFSET = 21
-        MAX_FREQ_IDX = 87
 
         with tf.device('/cpu:0'):
             _, midi_data, _ = predict(signal.audio_data.squeeze().squeeze().detach().cpu().numpy(), sample_rate=signal.sample_rate)
@@ -273,43 +277,53 @@ class AudioLoader:
                 for note in instrument.notes:
                     frame_start = int(np.round(note.start / dt))
                     frame_end = int(np.round(note.end / dt))
-                    pitch_index = note.pitch - MIDI_OFFSET
+                    pitch_index = note.pitch - self.midi_offset
 
                     # even if the event was too short, always produce a label!
                     if frame_start == frame_end:
                         frame_end += 1
 
-                    if pitch_index <= MAX_FREQ_IDX:
+                    if pitch_index <= self.max_freq_idx:
                         label[frame_start:frame_end, pitch_index] = 1
                     else:
                         print(f'Warning: Pitch index {pitch_index} out of range, {item["path"]}')
         return label
 
 
-"""
-def get_noisy_label(item):
+    def get_noisy_label_for_codec(self, signal, sample_rate, duration, codec_rate):
+        """Function to generate noisy label for audio codec using the pretrained Basic Pitch model.
 
-    dac_rate = 87
-    num_samples, num_notes = int(item["signal"].duration * dac_rate), 128
-    label = torch.zeros(num_samples, num_notes, dtype=torch.float32)
-    with tf.device('/cpu:0'):
-        _, midi_data, _ = predict(item["signal"].audio_data.squeeze().squeeze().detach().cpu().numpy(), sample_rate=item["signal"].sample_rate)
+        Parameters
+        ----------
+        signal : torch.Tensor
+            Audio signal tensor
+        sample_rate : int
+            Sample rate of the audio signal
+        duration : float
+            Duration of the audio signal in seconds
+        codec_rate : int
+            Sample rate of the codec algorithm
+        """
+        num_samples = duration * rate
+        label = torch.zeros(num_samples, self.n_notes, dtype=torch.float32)
 
-    for instrument in midi_data.instruments:
-        if not instrument.is_drum:
-            for note in instrument.notes:
-                note_start = librosa.time_to_samples(note.start, sr=dac_rate)
-                note_end = librosa.time_to_samples(note.end, sr=dac_rate)
-                pitch_index = note.pitch # 0-127
-                assert pitch_index >= 0, f'Pitch index is negative: {note.pitch}'
+        with tf.device('/cpu:0'):
+            _, midi_data, _ = predict(signal.squeeze().squeeze().detach().cpu().numpy(), sample_rate=sample_rate)
 
-                assert note_end >= note_start, "End sample must be later than start sample!"
-                if note_start == note_end:
-                    note_end = note_end + 1
-                label[note_start:note_end, pitch_index] = 1
+        for instrument in midi_data.instruments:
+            if not instrument.is_drum:
+                for note in instrument.notes:
+                    note_start = librosa.time_to_samples(note.start, sr=codec_rate)
+                    note_end = librosa.time_to_samples(note.end, sr=codec_rate)
+                    pitch_index = note.pitch # 0-127
+                    assert pitch_index >= 0, f'Pitch index is negative: {note.pitch}'
 
-    return label
-"""
+                    assert note_end >= note_start, "End sample must be later than start sample!"
+                    if note_start == note_end:
+                        note_end = note_end + 1
+                    label[note_start:note_end, pitch_index] = 1
+
+        return label
 
 def default_matcher(x, y):
     return Path(x).parent == Path(y).parent
