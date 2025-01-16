@@ -314,7 +314,7 @@ class AudioLoader:
                 for note in instrument.notes:
                     note_start = librosa.time_to_samples(note.start, sr=codec_rate)
                     note_end = librosa.time_to_samples(note.end, sr=codec_rate)
-                    pitch_index = note.pitch # 0-127
+                    pitch_index = note.pitch - self.midi_offset
                     assert pitch_index >= 0, f'Pitch index is negative: {note.pitch}'
 
                     assert note_end >= note_start, "End sample must be later than start sample!"
