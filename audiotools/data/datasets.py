@@ -303,7 +303,7 @@ class AudioLoader:
         codec_rate : int
             Sample rate of the codec algorithm
         """
-        num_samples = duration * rate
+        num_samples = int(duration * codec_rate)
         label = torch.zeros(num_samples, self.n_notes, dtype=torch.float32)
 
         with tf.device('/cpu:0'):
