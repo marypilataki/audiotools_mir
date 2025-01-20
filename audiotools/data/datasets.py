@@ -156,7 +156,7 @@ class AudioLoader:
             hop_size_samples = int(self.mel_params['frame_shift'] * 10**-3 * signal.sample_rate)
             dt = hop_size_samples / signal.sample_rate
             item = {"mel": mel, "path": path}
-            item["label"] = self.get_noisy_label(n_frames=n_frames, dt=dt).to(
+            item["label"] = self.get_noisy_label(signal, n_frames=n_frames, dt=dt).to(
                 torch.float32) if self.noisy_labels else self.get_midi_label(n_frames=n_frames, dt=dt,
                                                                              path=item["path"]).to(torch.float32)
         else:
@@ -261,7 +261,7 @@ class AudioLoader:
         return label
 
 
-    def get_noisy_label(self, n_frames, dt):
+    def get_noisy_label(self, signal, n_frames, dt):
         "Function to return a noisy label for spectrogram"
         # todo: add option to generate label for audio codec
         # dt = frame shift in seconds
