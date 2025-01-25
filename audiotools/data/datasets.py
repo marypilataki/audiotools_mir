@@ -190,7 +190,7 @@ class AudioLoader:
         return label_path
 
 
-    def get_midi_label_for_codec(self, sample_rate, offset, duration, path, codec_rate):
+    def get_midi_label_for_codec(self, offset, duration, path, codec_rate):
         "Function to return ground truth label for codec."
         # todo: add support for multi-instrument roll
         num_samples = duration * codec_rate
