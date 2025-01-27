@@ -178,6 +178,7 @@ class AudioLoader:
 
     def get_midi_path(self, path):
         """Function to infer MIDI path corresponding to an audio file based on dataset."""
+        print(path)
         if 'slakh' in path.lower():
             label_path = Path(path).parent / 'all_src.mid'
         elif 'maestro' in path.lower():
