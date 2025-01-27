@@ -11,11 +11,6 @@ import torch
 from torch.utils.data import SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
 
-import tensorflow as tf
-import sys
-sys.path.append('./audiotools_mir/audiotools/basic-pitch')
-from basic_pitch.inference import predict
-
 from ..core import AudioSignal
 from ..core import util
 
@@ -84,6 +79,11 @@ class AudioLoader:
         self.normalise_audio = normalise_audio
         self.n_instruments = n_instruments
         self.noisy_labels = noisy_labels
+        if self.noisy_labels:
+            import tensorflow as tf
+            import sys
+            sys.path.append('./audiotools_mir/audiotools/basic-pitch')
+            from basic_pitch.inference import predict
         self.n_notes = n_notes
         self.mel_params = mel_params
         self.codec_rate = codec_rate
@@ -270,8 +270,7 @@ class AudioLoader:
         # todo: add option to generate label for audio codec
         # dt = frame shift in seconds
 
-        with tf.device('/cpu:0'):
-            _, midi_data, _ = predict(signal.audio_data.squeeze().squeeze().detach().cpu().numpy(), sample_rate=signal.sample_rate)
+        _, midi_data, _ = predict(signal.audio_data.squeeze().squeeze().detach().cpu().numpy(), sample_rate=signal.sample_rate)
         label = torch.zeros(n_frames, self.n_notes, dtype=torch.int32)
 
         for instrument in midi_data.instruments:
