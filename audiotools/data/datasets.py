@@ -83,6 +83,7 @@ class AudioLoader:
         self.normalise_audio = normalise_audio
         self.n_instruments = n_instruments
         self.noisy_labels = noisy_labels
+        print('fNoisy labels:', self.noisy_labels)
         if self.noisy_labels:
             import sys
             path1 = r"C:\Dev\transcription\mir_jepa\audiotools_mir\audiotools\basic-pitch"
