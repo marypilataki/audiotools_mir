@@ -232,6 +232,9 @@ class AudioLoader:
             label = torch.zeros(n_frames, self.n_notes, dtype=torch.int32)
 
         label_path = self.get_midi_path(path)
+        print('Audio path:', path)
+        print('MIDI path:', label_path)
+        print()
         midi_data = PrettyMIDI(str(label_path))
 
         for instrument in midi_data.instruments:
