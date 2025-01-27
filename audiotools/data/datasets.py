@@ -4,6 +4,9 @@ from typing import Dict
 from typing import List
 from typing import Union
 
+import warnings
+warnings.filterwarnings("ignore")
+
 import numpy as np
 from pretty_midi import PrettyMIDI
 import librosa
@@ -79,11 +82,6 @@ class AudioLoader:
         self.normalise_audio = normalise_audio
         self.n_instruments = n_instruments
         self.noisy_labels = noisy_labels
-        if self.noisy_labels:
-            import tensorflow as tf
-            import sys
-            sys.path.append('./audiotools_mir/audiotools/basic-pitch')
-            from basic_pitch.inference import predict
         self.n_notes = n_notes
         self.mel_params = mel_params
         self.codec_rate = codec_rate
@@ -265,7 +263,10 @@ class AudioLoader:
         "Function to return a noisy label for spectrogram"
         # todo: add option to generate label for audio codec
         # dt = frame shift in seconds
-
+        import tensorflow as tf
+        import sys
+        sys.path.append('./audiotools_mir/audiotools/basic-pitch')
+        from basic_pitch.inference import predict
         _, midi_data, _ = predict(signal.audio_data.squeeze().squeeze().detach().cpu().numpy(), sample_rate=signal.sample_rate)
         label = torch.zeros(n_frames, self.n_notes, dtype=torch.int32)
 
