@@ -82,6 +82,16 @@ class AudioLoader:
         self.normalise_audio = normalise_audio
         self.n_instruments = n_instruments
         self.noisy_labels = noisy_labels
+        if self.noisy_labels:
+            import sys
+            path1 = r"C:\Dev\transcription\mir_jepa\audiotools_mir\audiotools\basic-pitch"
+            path2 = '/homes/mpm30/Dev/audiomae/mir_jepa/audiotools_mir/audiotools/basic-pitch/'
+            if os.path.exists(path1):
+                sys.path.append(path1)
+            elif os.path.exists(path2):
+                sys.path.append(path2)
+            else:
+                raise ValueError("Path to basic-pitch not found.")
         self.n_notes = n_notes
         self.mel_params = mel_params
         self.codec_rate = codec_rate
@@ -263,10 +273,6 @@ class AudioLoader:
         "Function to return a noisy label for spectrogram"
         # todo: add option to generate label for audio codec
         # dt = frame shift in seconds
-        import tensorflow as tf
-        import sys
-        sys.path.append('./audiotools_mir/audiotools/basic-pitch')
-        from basic_pitch.inference import predict
         _, midi_data, _ = predict(signal.audio_data.squeeze().squeeze().detach().cpu().numpy(), sample_rate=signal.sample_rate)
         label = torch.zeros(n_frames, self.n_notes, dtype=torch.int32)
 
