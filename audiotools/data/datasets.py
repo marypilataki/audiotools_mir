@@ -93,6 +93,7 @@ class AudioLoader:
                 sys.path.append(path2)
             else:
                 raise ValueError("Path to basic-pitch not found.")
+            from basic_pitch.inference import predict
         self.n_notes = n_notes
         self.mel_params = mel_params
         self.codec_rate = codec_rate
@@ -313,8 +314,7 @@ class AudioLoader:
         num_samples = int(duration * codec_rate)
         label = torch.zeros(num_samples, self.n_notes, dtype=torch.float32)
 
-        with tf.device('/cpu:0'):
-            _, midi_data, _ = predict(signal.squeeze().squeeze().detach().cpu().numpy(), sample_rate=sample_rate)
+        _, midi_data, _ = predict(signal.squeeze().squeeze().detach().cpu().numpy(), sample_rate=sample_rate)
 
         for instrument in midi_data.instruments:
             if not instrument.is_drum:
