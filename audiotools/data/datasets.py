@@ -15,6 +15,18 @@ import torch
 from torch.utils.data import SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
 
+import sys
+
+path1 = r"C:\Dev\transcription\mir_jepa\audiotools_mir\audiotools\basic-pitch"
+path2 = '/homes/mpm30/Dev/audiomae/mir_jepa/audiotools_mir/audiotools/basic-pitch/'
+if os.path.exists(path1):
+    sys.path.append(path1)
+elif os.path.exists(path2):
+    sys.path.append(path2)
+else:
+    raise ValueError("Path to basic-pitch not found.")
+from basic_pitch.inference import predict
+
 from ..core import AudioSignal
 from ..core import util
 
@@ -83,18 +95,6 @@ class AudioLoader:
         self.normalise_audio = normalise_audio
         self.n_instruments = n_instruments
         self.noisy_labels = noisy_labels
-        print('fNoisy labels:', self.noisy_labels)
-        if self.noisy_labels:
-            import sys
-            path1 = r"C:\Dev\transcription\mir_jepa\audiotools_mir\audiotools\basic-pitch"
-            path2 = '/homes/mpm30/Dev/audiomae/mir_jepa/audiotools_mir/audiotools/basic-pitch/'
-            if os.path.exists(path1):
-                sys.path.append(path1)
-            elif os.path.exists(path2):
-                sys.path.append(path2)
-            else:
-                raise ValueError("Path to basic-pitch not found.")
-            from basic_pitch.inference import predict
         self.n_notes = n_notes
         self.mel_params = mel_params
         self.codec_rate = codec_rate
