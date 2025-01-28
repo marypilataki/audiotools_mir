@@ -70,7 +70,7 @@ class AudioLoader:
             shuffle_state: int = 0,
             normalise_audio: bool = False,
             n_instruments: int = 1,
-            noisy_labels: bool = False,
+            noisy_labels: bool = None,
             n_notes: int = 88,
             mel_params: dict = None,
             codec_rate: int = None,
@@ -167,9 +167,11 @@ class AudioLoader:
             hop_size_samples = int(self.mel_params['frame_shift'] * 10**-3 * signal.sample_rate)
             dt = hop_size_samples / signal.sample_rate
             item = {"mel": mel, "path": path}
-            item["label"] = self.get_noisy_label(signal, n_frames=n_frames, dt=dt).to(
-                torch.float32) if self.noisy_labels else self.get_midi_label(n_frames=n_frames, dt=dt,
-                                                                             path=item["path"]).to(torch.float32)
+
+            if self.noisy_labels is not None:
+                item["label"] = self.get_noisy_label(signal, n_frames=n_frames, dt=dt).to(
+                    torch.float32) if self.noisy_labels else self.get_midi_label(n_frames=n_frames, dt=dt,
+                                                                                 path=item["path"]).to(torch.float32)
         else:
             item = {
                 "signal": signal,
