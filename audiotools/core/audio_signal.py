@@ -714,7 +714,7 @@ class AudioSignal(
         self.audio_data = self.audio_data.mean(1, keepdim=True)
         return self
 
-    def mel_filterbank(self, num_mel_bins, frame_shift, frame_length):
+    def mel_filterbank(self, num_mel_bins, frame_shift, frame_length, data_mean=None, data_std=None):
         mel = []
         if self.audio_data.ndim == 2: # C, N
             pass
@@ -728,7 +728,12 @@ class AudioSignal(
 
 
         # returns mel filterbank [n_frames, n_mel_bins]
-        return torch.cat(mel, dim=0)
+        if data_mean is not None and data_std is not None:
+            feature = torch.cat(mel, dim=0)
+            feature = (feature - data_mean) / (data_std * 2)
+            return feature
+        else:
+            return torch.cat(mel, dim=0)
 
     def resample(self, sample_rate: int):
         """Resamples the audio, using sinc interpolation. This works on both
