@@ -30,6 +30,8 @@ from basic_pitch.inference import predict
 from ..core import AudioSignal
 from ..core import util
 
+MILLISECONDS_TO_SECONDS = 0.001
+
 class AudioLoader:
     """Loads audio endlessly from a list of audio sources
     containing paths to audio files. Audio sources can be
@@ -164,14 +166,16 @@ class AudioLoader:
             assert self.codec_rate == None, "Please choose either a mel filterbank or a codec to generate labels for."
             mel = signal.mel_filterbank(**self.mel_params)
             n_frames = mel.shape[1] # 1, 128, 128 -> C, N_FRAMES, BINS
-            hop_size_samples = int(self.mel_params['frame_shift'] * 10**-3 * signal.sample_rate)
-            dt = hop_size_samples / signal.sample_rate
+            window_shift = int(signal.sample_rate * self.mel_params['frame_shift'] * MILLISECONDS_TO_SECONDS)
+            dt = window_shift / signal.sample_rate * 10
             item = {"mel": mel, "path": path}
 
-            if self.noisy_labels is not None:
+            if self.noisy_labels:
                 item["label"] = self.get_noisy_label(signal, n_frames=n_frames, dt=dt).to(
                     torch.float32) if self.noisy_labels else self.get_midi_label(n_frames=n_frames, dt=dt,
                                                                                  path=item["path"]).to(torch.float32)
+            elif self.noisy_labels == False:
+                item["label"] = self.get_midi_label(n_frames=n_frames, dt=dt, path=item["path"]).to(torch.float32)
         else:
             item = {
                 "signal": signal,
@@ -193,6 +197,8 @@ class AudioLoader:
         """Function to infer MIDI path corresponding to an audio file based on dataset."""
         if 'slakh' in path.lower():
             label_path = Path(path).parent / 'all_src.mid'
+            if not Path(label_path).exists():
+                label_path = Path(path).parents[1] / 'MIDI'/ (Path(path).stem + '.mid') # todo: temporary fix for local debugging
         elif 'maestro' in path.lower():
             label_path = Path(path).parent / f'{Path(path).stem}.midi'
         elif 'musicnet' in path.lower():
