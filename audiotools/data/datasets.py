@@ -274,8 +274,7 @@ class AudioLoader:
                     if note.start >= start_time and note.start <= end_time:
                         frame_start = int(np.round((note.start-start_time) / dt))
                         pitch_index = note.pitch - self.midi_offset
-                        assert pitch_index >= 0, f'Pitch index is negative: {pitch_index}'
-                        if pitch_index <= self.max_freq_idx:
+                        if pitch_index <= self.max_freq_idx and pitch_index>=0:
                             # note ends within this excerprt
                             if note.end <= end_time and note.end >= start_time:
                                 frame_end = int(np.round((note.end-start_time) / dt))
@@ -291,8 +290,7 @@ class AudioLoader:
                     elif note.end <= end_time and note.end >= start_time:
                         frame_end = int(np.round((note.end-start_time) / dt))
                         pitch_index = note.pitch - self.midi_offset
-                        assert pitch_index >= 0, f'Pitch index is negative: {pitch_index}'
-                        if pitch_index <= self.max_freq_idx:
+                        if pitch_index <= self.max_freq_idx and pitch_index >= 0:
                             label[:frame_end, pitch_index, program_to_index[instrument.program]] = 1
         return label
 
@@ -316,7 +314,7 @@ class AudioLoader:
                     if frame_start == frame_end:
                         frame_end += 1
 
-                    if pitch_index <= self.max_freq_idx:
+                    if pitch_index <= self.max_freq_idx and pitch_index >= 0:
                         label[frame_start:frame_end, pitch_index] = 1
                     else:
                         print(f'Warning: Pitch index {pitch_index} out of range, {item["path"]}')
