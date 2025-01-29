@@ -267,8 +267,8 @@ class AudioLoader:
         start_time = offset
         end_time = start_time + duration
         for instrument in midi_data.instruments:
-            # only consider non-percussive instruments
-            if not instrument.is_drum:
+            # only consider non-percussive instruments and only those in our vocabulary
+            if not instrument.is_drum and instrument.program in program_to_index.keys():
                 for note in instrument.notes:
                     # note onset within this excerpt
                     if note.start >= start_time and note.start <= end_time:
