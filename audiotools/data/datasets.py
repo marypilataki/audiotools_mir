@@ -167,15 +167,15 @@ class AudioLoader:
             mel = signal.mel_filterbank(**self.mel_params)
             n_frames = mel.shape[1] # 1, 128, 128 -> C, N_FRAMES, BINS
             window_shift = int(signal.sample_rate * self.mel_params['frame_shift'] * MILLISECONDS_TO_SECONDS)
-            dt = window_shift / signal.sample_rate * 10
-            item = {"mel": mel, "path": path}
+            dt = window_shift / signal.sample_rate
+            item = {"mel": mel, "path": str(path), "offset": signal.metadata["offset"]}
 
             if self.noisy_labels:
                 item["label"] = self.get_noisy_label(signal, n_frames=n_frames, dt=dt).to(
                     torch.float32) if self.noisy_labels else self.get_midi_label(n_frames=n_frames, dt=dt,
                                                                                  path=item["path"]).to(torch.float32)
             elif self.noisy_labels == False:
-                item["label"] = self.get_midi_label(n_frames=n_frames, dt=dt, path=item["path"]).to(torch.float32)
+                item["label"] = self.get_midi_label(offset=item["offset"], duration=duration, n_frames=n_frames, dt=dt, path=item["path"]).to(torch.float32)
         else:
             item = {
                 "signal": signal,
@@ -225,23 +225,34 @@ class AudioLoader:
         midi_data = PrettyMIDI(str(label_path))
 
         for instrument in midi_data.instruments:
+            # only consider non-percussive instruments
             if not instrument.is_drum:
                 for note in instrument.notes:
-                    if note.start >= start_time:
+                    # note onset within this excerpt
+                    if note.start >= start_time and note.start <= end_time:
                         note_start = librosa.time_to_samples(note.start - start_time, sr=codec_rate)
                         pitch_index = note.pitch - self.midi_offset
                         assert pitch_index >= 0, f'Pitch index is negative: {pitch_index}'
-
-                        if note.end <= end_time:
+                        # note ends within this excerprt
+                        if note.end <= end_time and note.end >= start_time:
                             note_end = librosa.time_to_samples(note.end - start_time, sr=codec_rate)
                             label[note_start:note_end, pitch_index] = 1
                         else:
+                            # note goes on until the end of this excerpt
                             label[note_start:, pitch_index] = 1
+                    # no note onset within this excerpt
+                    # maybe there is a note offset only
+                    elif note.end >= start_time and note.end <= end_time:
+                        note_end = librosa.time_to_samples(note.end - start_time, sr=codec_rate)
+                        pitch_index = note.pitch - self.midi_offset
+                        assert pitch_index >= 0, f'Pitch index is negative: {pitch_index}'
+                        label[:note_end, pitch_index] = 1
         return label
 
 
-    def get_midi_label(self, n_frames, dt, path):
+    def get_midi_label(self, offset, duration, n_frames, dt, path):
         "Function to return ground truth label for spectrogram"
+        # todo: add option for piano-roll only, currently multi-instrument roll
         # dt = frame shift in seconds
 
         if self.n_instruments > 1:
@@ -253,30 +264,36 @@ class AudioLoader:
         label_path = self.get_midi_path(path)
         midi_data = PrettyMIDI(str(label_path))
 
+        start_time = offset
+        end_time = start_time + duration
         for instrument in midi_data.instruments:
             # only consider non-percussive instruments
             if not instrument.is_drum:
                 for note in instrument.notes:
-                    frame_start = int(np.round(note.start / dt))
-                    frame_end = int(np.round(note.end / dt))
-                    pitch_index = note.pitch - self.midi_offset
-
-                    # even if the event was too short, always produce a label!
-                    if frame_start == frame_end:
-                        frame_end += 1
-
-                    if pitch_index <= self.max_freq_idx:
-                        if self.n_instruments > 1:
-                            try:
+                    # note onset within this excerpt
+                    if note.start >= start_time and note.start <= end_time:
+                        frame_start = int(np.round((note.start-start_time) / dt))
+                        pitch_index = note.pitch - self.midi_offset
+                        assert pitch_index >= 0, f'Pitch index is negative: {pitch_index}'
+                        if pitch_index <= self.max_freq_idx:
+                            # note ends within this excerprt
+                            if note.end <= end_time and note.end >= start_time:
+                                frame_end = int(np.round((note.end-start_time) / dt))
+                                # even if the event was too short, always produce a label!
+                                if frame_start == frame_end:
+                                    frame_end += 1
                                 label[frame_start:frame_end, pitch_index, program_to_index[instrument.program]] = 1
-                            except:
-                                pass
-                                #print(f'Warning: MIDI instrument {instrument.program} not in vocabulary, {path}')
-                        else:
-                            label[frame_start:frame_end, pitch_index] = 1
-                    else:
-                        pass
-                        #print(f'Warning: Pitch index {pitch_index} out of range, {path}')
+                            else:
+                                # note goes on until the end of this excerpt
+                                label[frame_start:, pitch_index, program_to_index[instrument.program]] = 1
+                    # no note onset within this excerpt
+                    # maybe there is a note offset only
+                    elif note.end <= end_time and note.end >= start_time:
+                        frame_end = int(np.round((note.end-start_time) / dt))
+                        pitch_index = note.pitch - self.midi_offset
+                        assert pitch_index >= 0, f'Pitch index is negative: {pitch_index}'
+                        if pitch_index <= self.max_freq_idx:
+                            label[:frame_end, pitch_index, program_to_index[instrument.program]] = 1
         return label
 
 
