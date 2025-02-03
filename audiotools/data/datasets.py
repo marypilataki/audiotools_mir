@@ -271,12 +271,12 @@ class AudioLoader:
             if not instrument.is_drum and instrument.program in program_to_index.keys():
                 for note in instrument.notes:
                     # note onset within this excerpt
-                    if note.start >= start_time and note.start <= end_time:
+                    if note.start >= start_time and note.end < end_time:
                         frame_start = int(np.round((note.start-start_time) / dt))
                         pitch_index = note.pitch - self.midi_offset
                         if pitch_index <= self.max_freq_idx and pitch_index>=0:
                             # note ends within this excerprt
-                            if note.end <= end_time and note.end >= start_time:
+                            if note.end < end_time and note.end >= start_time:
                                 frame_end = int(np.round((note.end-start_time) / dt))
                                 # even if the event was too short, always produce a label!
                                 if frame_start == frame_end:
@@ -287,7 +287,7 @@ class AudioLoader:
                                 label[frame_start:, pitch_index, program_to_index[instrument.program]] = 1
                     # no note onset within this excerpt
                     # maybe there is a note offset only
-                    elif note.end <= end_time and note.end >= start_time:
+                    elif note.end < end_time and note.end >= start_time:
                         frame_end = int(np.round((note.end-start_time) / dt))
                         pitch_index = note.pitch - self.midi_offset
                         if pitch_index <= self.max_freq_idx and pitch_index >= 0:
