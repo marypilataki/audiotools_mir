@@ -172,7 +172,7 @@ class AudioLoader:
 
             if self.noisy_labels:
                 item["label"] = self.get_noisy_label(signal, n_frames=n_frames, dt=dt).to(
-                    torch.float32) if self.noisy_labels else self.get_midi_label(n_frames=n_frames, dt=dt,
+                    torch.float32) if self.noisy_labels else self.get_midi_label(offset=item["offset"], duration=signal.duration, n_frames=n_frames, dt=dt,
                                                                                  path=item["path"]).to(torch.float32)
             elif self.noisy_labels == False:
                 item["label"] = self.get_midi_label(offset=item["offset"], duration=duration, n_frames=n_frames, dt=dt, path=item["path"]).to(torch.float32)
