@@ -156,7 +156,7 @@ class AudioLoader:
             signal = signal.zero_pad_to(int(duration * sample_rate))
 
         if self.normalise_audio:
-            signal.normalize(-24) # normalise to -24 dB
+            signal.normalize(-24.0)
             signal.ensure_max_of_audio(1.0) # make sure there is no clipping
         for k, v in audio_info.items():
             signal.metadata[k] = v
